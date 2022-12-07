@@ -44,7 +44,7 @@ public:
 
 PVOID oGetPublicKey = nullptr;
 PVOID oGetPrivateKey = nullptr;
-
+LPCSTR gcpb = "<RSAKeyValue><Modulus>xbbx2m1feHyrQ7jP+8mtDF/pyYLrJWKWAdEv3wZrOtjOZzeLGPzsmkcgncgoRhX4dT+1itSMR9j9m0/OwsH2UoF6U32LxCOQWQD1AMgIZjAkJeJvFTrtn8fMQ1701CkbaLTVIjRMlTw8kNXvNA/A9UatoiDmi4TFG6mrxTKZpIcTInvPEpkK2A7Qsp1E4skFK8jmysy7uRhMaYHtPTsBvxP0zn3lhKB3W+HTqpneewXWHjCDfL7Nbby91jbz5EKPZXWLuhXIvR1Cu4tiruorwXJxmXaP1HQZonytECNU/UOzP6GNLdq0eFDE4b04Wjp396551G99YiFP2nqHVJ5OMQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
 
 PVOID Detour(PVOID func, PVOID jmp, bool attach)
 {
@@ -65,7 +65,7 @@ PVOID Detour(PVOID func, PVOID jmp, bool attach)
 
 std::string ReadFile(std::string path)
 {
-	std::ifstream ifs(path);
+	std::ifstream ifs(std::filesystem::current_path() / path);
 	if (!ifs.good())
 	{
 		Utils::ConsolePrint("Failed to Open: %s\n", path.c_str());
@@ -103,6 +103,11 @@ Array<BYTE>* __fastcall hkGetRSAKey()
 	{
 		Utils::ConsolePrint("public\n");
 		customKey = ReadFile("PublicKey.txt");
+		if (customKey.empty())
+		{
+			Utils::ConsolePrint("using grasscutter public key\n");
+			customKey = gcpb;
+		}
 	}
 
 	if (!customKey.empty())
