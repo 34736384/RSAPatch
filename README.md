@@ -3,7 +3,7 @@
 A patch to get into grass cutting for a certain anime game
 ## How to Use?
 
- - Download dll from release or compile it yourself
+ - Download dll from release or compile it (**as Release**) yourself
  - Rename it to `version.dll` or `mhypbase.dll` and put it in the same folder as the game
  - Create a file named `PublicKey.txt` under the same folder as the game and put your public key in there
  - **Grasscutter's public key is now hardcoded as default, if you only planning it use it with gc, then you don't have to create any additional files**
