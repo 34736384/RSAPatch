@@ -17,6 +17,7 @@ typedef enum _SECTION_INFORMATION_CLASS {
 } SECTION_INFORMATION_CLASS, * PSECTION_INFORMATION_CLASS;
 EXTERN_C NTSTATUS __stdcall NtQuerySection(HANDLE SectionHandle, SECTION_INFORMATION_CLASS InformationClass, PVOID InformationBuffer, ULONG InformationBufferSize, PULONG ResultLength);
 EXTERN_C NTSTATUS __stdcall NtProtectVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, PULONG  NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
+EXTERN_C NTSTATUS __stdcall NtPulseEvent(HANDLE EventHandle, PULONG PreviousState);
 
 template <typename T>
 class Array
@@ -204,9 +205,12 @@ String* __fastcall hkReadToEnd(void* rcx, void* rdx)
 void DisableVMP()
 {
 	// restore hook at NtProtectVirtualMemory
+	auto ntdll = GetModuleHandleA("ntdll.dll");
+	bool linux = GetProcAddress(ntdll, "wine_get_version") != nullptr;
+	void* routine = linux ? (void*)NtPulseEvent : (void*)NtQuerySection;
 	DWORD old;
 	VirtualProtect(NtProtectVirtualMemory, 1, PAGE_EXECUTE_READWRITE, &old);
-	*(uintptr_t*)NtProtectVirtualMemory = *(uintptr_t*)NtQuerySection & ~(0xFFui64 << 32) | (uintptr_t)(*(uint32_t*)((uintptr_t)NtQuerySection + 4) - 1) << 32;
+	*(uintptr_t*)NtProtectVirtualMemory = *(uintptr_t*)routine & ~(0xFFui64 << 32) | (uintptr_t)(*(uint32_t*)((uintptr_t)routine + 4) - 1) << 32;
 	VirtualProtect(NtProtectVirtualMemory, 1, old, &old);
 }
 
@@ -272,10 +276,66 @@ void OldVersion() // <= 3.5.0
 	Utils::ConsolePrint("Hooked GetPrivateKey - Original at: %p\n", oGetPrivateKey);
 }
 
+void ACheckForThoseWhoCannotFollowInstructions(LPVOID instance)
+{
+	if (!instance)
+	{
+		// this shouldn't happen
+		return;
+	}
+
+	char szModulePath[MAX_PATH]{};
+	GetModuleFileNameA((HMODULE)instance, szModulePath, MAX_PATH);
+	
+	std::filesystem::path ModulePath = szModulePath;
+	std::string ModuleName = ModulePath.filename().string();
+	std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
+
+	if (ModuleName == "version.dll")
+	{
+		// check mhypbase.dll
+		auto mhypbase = GetModuleHandleA("mhypbase.dll");
+		if (!mhypbase)
+			return;
+
+		PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)mhypbase;
+		PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((uintptr_t)mhypbase + dosHeader->e_lfanew);
+		auto sizeOfImage = ntHeaders->OptionalHeader.SizeOfImage;
+		
+		// over 1MB
+		if (sizeOfImage > 1 * 1024 * 1024) 
+			return;
+
+		// uh oh
+	}
+	else
+	{
+		// check version.dll
+		auto version = GetModuleHandleA("version.dll");
+		if (!version)
+			return; // this shouldn't happen
+
+		ZeroMemory(szModulePath, MAX_PATH);
+		GetModuleFileNameA((HMODULE)version, szModulePath, MAX_PATH);
+		ModuleName = szModulePath;
+		std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
+
+		if (ModuleName.find("system32") != std::string::npos)
+			return;
+
+		// uh oh
+	}
+
+	// https://www.youtube.com/watch?v=9a_3wQHcm_Y
+	MessageBoxA(nullptr, "You may have more than one RSAPatch installed.\nPlease only use one RSAPatch to avoid instability.", "RSAPatch", MB_ICONWARNING);
+}
+
 DWORD __stdcall Thread(LPVOID p)
 {
 	Utils::AttachConsole();
 	Utils::ConsolePrint("Waiting for game to startup\n");
+
+	ACheckForThoseWhoCannotFollowInstructions(p);
 
 	auto pid = GetCurrentProcessId();
 	while (true)
