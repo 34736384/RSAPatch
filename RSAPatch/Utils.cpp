@@ -1,5 +1,6 @@
 #include "Utils.h"
 #include <stdio.h>
+#include <fstream>
 
 HANDLE _out = NULL, _old_out = NULL;
 HANDLE _err = NULL, _old_err = NULL;
@@ -7,6 +8,9 @@ HANDLE _in = NULL, _old_in = NULL;
 
 void Utils::AttachConsole()
 {
+    std::ifstream f(".noconsole");
+    if (f.good()) return;
+
     _old_out = GetStdHandle(STD_OUTPUT_HANDLE);
     _old_err = GetStdHandle(STD_ERROR_HANDLE);
     _old_in = GetStdHandle(STD_INPUT_HANDLE);
